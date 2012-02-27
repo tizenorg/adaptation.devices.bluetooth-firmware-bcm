@@ -1,0 +1,21 @@
+Source: bt-firmware-43xx
+Section: devel
+Priority: optional
+Maintainer: DoHyun Pyun <dh79.pyun@samsung.com>, ChanYeol Park <chanyeol.park@samsung.com>, Girish A J <girish.joshi@samsung.com>, InJun Yang <injun.yang@samsung.com>
+Uploaders: Sunil Behera <sunil.behera@samsung.com>, Syam Sidhardhan <s.syam@samsung.com>
+Build-Depends: debhelper (>= 5), libglib2.0-dev, libdbus-glib-1-dev, libvconf-dev
+Standards-Version: 3.7.2
+Homepage: N/A
+
+Package: bt-firmware-43xx
+Architecture: any
+Section: utils
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Tools and scripts for Bluetooth stack
+
+Package: bt-firmware-43xx-dbg
+Section: debug
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, bt-firmware-43xx (= ${Source-Version})
+Description: Tools and scripts for Bluetooth stack (unstripped)
+ The package contains detached debugging symbols for the binary packages

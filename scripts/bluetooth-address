@@ -1,0 +1,9 @@
+#!/bin/sh
+
+#
+# Script for setting local Bluetooth Address during booting time
+#
+
+if [ -x /usr/etc/bluetooth/bt-set-addr.sh ]; then
+	/usr/etc/bluetooth/bt-set-addr.sh &
+fi
