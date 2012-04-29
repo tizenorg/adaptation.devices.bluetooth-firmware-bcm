@@ -9,7 +9,7 @@ BT_CHIP_TYPE=bcm2035
 BCM_TOOL=$PLUGIN_DIR/usr/bin/bcmtool_4330b1
 BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
 
-BT_PLATFORM_DEFAULT_HCI_NAME="SLP2.0_BT"
+BT_PLATFORM_DEFAULT_HCI_NAME="TIZEN_BT"
 UART_SPEED=921600
 
 REVISION_NUM=`grep Revision /proc/cpuinfo | awk "{print \\$3}"`
@@ -54,4 +54,3 @@ else
 		rfkill block bluetooth
 	fi
 fi
-

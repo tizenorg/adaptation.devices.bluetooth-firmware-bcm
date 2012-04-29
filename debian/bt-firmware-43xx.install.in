@@ -1,4 +1,0 @@
-@PLUGIN_PREFIX@/bin/*
-@PREFIX@/bin/setbd
-@PREFIX@/etc/bluetooth/*
-/etc/*

@@ -1,28 +1,26 @@
-
 Name:       bt-firmware-43xx
-Summary:    Tools and scripts for Bluetooth stack
-Version:    0.1.0
+Summary:    firmware and tools for bluetooth
+Version:    0.1.2
 Release:    1
-Group:      TO_BE/FILLED_IN
-License:    GPL
-Source0:    %{name}-%{version}.tar.gz
+Group:      TO_BE_FILLED
+License:    TO_BE_FILLED
+Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
 
 BuildRequires:  pkgconfig(dbus-glib-1)
-BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(dlog)
 BuildRequires:  pkgconfig(vconf)
 BuildRequires:  cmake
 
 %description
-Tools and scripts for Bluetooth stack
+ firmware and tools for bluetooth
+
 
 %prep
 %setup -q
 
 %build
-export CFLAGS+=" $CFLAGS -fpie"
-export LDFLAGS+=" -Wl,--rpath=/usr/lib -Wl,--as-needed -Wl,--unresolved-symbols=ignore-in-shared-libs -pie"
-cmake . -DCMAKE_INSTALL_PREFIX=/usr -DPLUGIN_INSTALL_PREFIX=/usr
-
+cmake ./ -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPLUGIN_INSTALL_PREFIX=%{_prefix}
+make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
@@ -30,7 +28,10 @@ rm -rf %{buildroot}
 
 
 %files
-/etc/rc.d/init.d/*
-/lib/firmware/*
-/usr/bin/*
-/usr/etc/bluetooth/*
+%defattr(-,root,root,-)
+%{_bindir}/bcmtool_4330b1
+%{_bindir}/setbd
+%{_prefix}/etc/bluetooth/BCM4330B1_002.001.003.0221.0265.hcd
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start.sh
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh

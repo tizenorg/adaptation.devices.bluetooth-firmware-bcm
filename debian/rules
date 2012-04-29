@@ -4,10 +4,12 @@
 #export DH_VERBOSE=1
 
 CFLAGS ?= -Wall -g
-LDFLAGS ?= 
+LDFLAGS ?=
 PREFIX ?= /usr
 DATADIR ?= /opt
 PLUGIN_PREFIX ?= /usr
+
+CMAKE_BUILD_DIR ?= $(CURDIR)/cmake_build_tmp
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CFLAGS += -O0
@@ -21,18 +23,20 @@ configure: configure-stamp
 configure-stamp:
 	dh_testdir
 	# Add here commands to configure the package.
+	mkdir -p $(CMAKE_BUILD_DIR) && \
+	cd $(CMAKE_BUILD_DIR) && \
 	CFLAGS="$(CFLAGS) -fpie" LDFLAGS="$(LDFLAGS) -pie" \
-	       cmake . -DCMAKE_INSTALL_PREFIX=$(PREFIX) -DPLUGIN_INSTALL_PREFIX=$(PLUGIN_PREFIX)
+	cmake .. -DCMAKE_INSTALL_PREFIX=$(PREFIX) -DPLUGIN_INSTALL_PREFIX=$(PLUGIN_PREFIX)
 
 	touch configure-stamp
 
 build: build-stamp
 
-build-stamp: configure-stamp 
+build-stamp: configure-stamp
 	dh_testdir
 
 	# Add here commands to compile the package.
-	$(MAKE)
+	cd $(CMAKE_BUILD_DIR) && $(MAKE)
 
 	for f in `find $(CURDIR)/debian/ -name "*.in"`; do \
 		cat $$f > $${f%.in}; \
@@ -49,51 +53,25 @@ clean:
 	rm -f build-stamp configure-stamp
 
 	# Add here commands to clean up after the build process.
-	-$(MAKE) clean
-
-
-	for f in `find $(CURDIR)/ -name "CMakeCache.txt"`; do \
-		rm -f $${f}; \
-	done
-	for f in `find $(CURDIR)/ -name "CMakeFiles"`; do \
-		rm -rf $${f}; \
-	done
-	for f in `find $(CURDIR)/ -name "cmake_install.cmake"`; do \
-		rm -f $${f}; \
-	done
-	for f in `find $(CURDIR)/ -name "Makefile"`; do \
-		rm -f $${f}; \
-	done
-	for f in `find $(CURDIR)/ -name "install_manifest.txt"`; do \
-		rm -f $${f}; \
-	done
-
+	-rm -rf $(CMAKE_BUILD_DIR)
 	for f in `find $(CURDIR)/debian/ -name "*.in"`; do \
 		rm -f $${f%.in}; \
 	done
 
-	rm -f scripts/BCM_FIRMWARE*.hcd
-	rm -f scripts/bt-dev-end.sh
-	rm -f scripts/bt-dev-start.sh
-	rm -f scripts/bt-set-addr.sh
-
-	dh_clean 
+	dh_clean
 
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k 
+	dh_clean -k
 	dh_installdirs
 
 	# Add here commands to install the package into debian/wavplayer.
-	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+	cd $(CMAKE_BUILD_DIR) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+
+
 
 	# Booting script
-	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
-	mkdir -p $(CURDIR)/debian/tmp/etc/rc.d/rc3.d
-	mkdir -p $(CURDIR)/debian/tmp/etc/rc.d/rc5.d
-	ln -s ../init.d/bluetooth-address $(CURDIR)/debian/tmp/etc/rc.d/rc3.d/S60bluetooth-address
-	ln -s ../init.d/bluetooth-address $(CURDIR)/debian/tmp/etc/rc.d/rc5.d/S60bluetooth-address
 
 # Build architecture-independent files here.
 binary-indep: build install
@@ -103,12 +81,12 @@ binary-indep: build install
 binary-arch: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs 
+	dh_installchangelogs
 	dh_installdocs
 	dh_installexamples
 	dh_install --sourcedir=debian/tmp
 #	dh_installmenu
-#	dh_installdebconf	
+#	dh_installdebconf
 #	dh_installlogrotate
 #	dh_installemacsen
 #	dh_installpam

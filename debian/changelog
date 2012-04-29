@@ -1,3 +1,15 @@
+bt-firmware-43xx (0.1.2) unstable; urgency=low
+
+  * Fix set bd bug as TAPI IMEI API deprecated
+
+ -- Jaekyun Lee <jkyun.lee@samsung.com>  Mon, 26 Mar 2012 15:13:31 +0900
+
+bt-firmware-43xx (0.1.1) unstable; urgency=low
+
+  * common script moved to bluetooth-tools
+
+ -- Jaekyun Lee <jkyun.lee@samsung.com>  Fri, 23 Mar 2012 11:29:47 +0900
+
 bt-firmware-43xx (0.1.0) unstable; urgency=low
 
   * Initail Release
