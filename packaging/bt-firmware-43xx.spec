@@ -5,6 +5,7 @@ Release:    1
 Group:      TO_BE_FILLED
 License:    TO_BE_FILLED
 Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
+Source1001: packaging/bt-firmware-43xx.manifest 
 
 BuildRequires:  pkgconfig(dbus-glib-1)
 BuildRequires:  pkgconfig(dlog)
@@ -19,6 +20,7 @@ BuildRequires:  cmake
 %setup -q
 
 %build
+cp %{SOURCE1001} .
 cmake ./ -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPLUGIN_INSTALL_PREFIX=%{_prefix}
 make %{?jobs:-j%jobs}
 
@@ -28,6 +30,7 @@ rm -rf %{buildroot}
 
 
 %files
+%manifest bt-firmware-43xx.manifest
 %defattr(-,root,root,-)
 %{_bindir}/bcmtool_4330b1
 %{_bindir}/setbd
