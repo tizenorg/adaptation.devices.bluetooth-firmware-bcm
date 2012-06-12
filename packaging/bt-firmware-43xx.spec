@@ -2,8 +2,10 @@ Name:       bt-firmware-43xx
 Summary:    firmware and tools for bluetooth
 Version:    0.1.2
 Release:    1
-Group:      TO_BE_FILLED
-License:    TO_BE_FILLED
+Group:      Hardware Support/Handset
+License:    Apache
+# NOTE: Source name does not match package name.  This should be
+# resolved in the future, by I don't have that power. - Ryan Ware
 Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
 Source1001: packaging/bt-firmware-43xx.manifest 
 
