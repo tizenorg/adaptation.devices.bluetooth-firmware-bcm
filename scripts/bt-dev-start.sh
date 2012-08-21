@@ -1,16 +1,15 @@
 #!/bin/sh
 
-#
 # Script for registering Broadcom UART BT device
-#
-PLUGIN_DIR=
 BT_UART_DEVICE=/dev/ttySAC0
 BT_CHIP_TYPE=bcm2035
-BCM_TOOL=$PLUGIN_DIR/usr/bin/bcmtool_4330b1
-BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
+BCM_TOOL=/usr/bin/bcmtool_4330b1
 
-BT_PLATFORM_DEFAULT_HCI_NAME="TIZEN_BT"
+BT_PLATFORM_DEFAULT_HCI_NAME="TIZEN-Mobile"
 UART_SPEED=921600
+
+#set default firmware
+BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
 
 REVISION_NUM=`grep Revision /proc/cpuinfo | awk "{print \\$3}"`
 REVISION_HIGH=`echo $REVISION_NUM| cut -c1-2`
@@ -40,7 +39,7 @@ else
 	echo "Bluetooth device is DOWN"
 	echo "Registering Bluetooth device"
 
-	$BCM_TOOL $BT_UART_DEVICE -FILE=$PLUGIN_DIR/usr/etc/bluetooth/$BCM_FIRMWARE -BAUD=$UART_SPEED -ADDR=/opt/etc/.bd_addr -SETSCO=0,0,0,0,0,0,0,3,3,0 -LP > /dev/null 2>&1
+	$BCM_TOOL $BT_UART_DEVICE -FILE=/usr/etc/bluetooth/$BCM_FIRMWARE -BAUD=$UART_SPEED -ADDR=/opt/etc/.bd_addr -SETSCO=0,0,0,0,0,0,0,3,3,0 -LP > /dev/null 2>&1
 
 	# Attaching Broadcom device
 	if (/usr/sbin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then

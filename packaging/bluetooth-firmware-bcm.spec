@@ -1,13 +1,13 @@
-Name:       bt-firmware-43xx
+Name:      bluetooth-firmware-bcm
 Summary:    firmware and tools for bluetooth
-Version:    0.1.2
+Version:    0.1.3
 Release:    1
-Group:      TO_BE_FILLED
-License:    TO_BE_FILLED
-Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
+Group:      Hardware Support/Handset
+License:    Apache
+# NOTE: Source name does not match package name.  This should be
+# resolved in the future, by I don't have that power. - Ryan Ware
+Source0:    %{name}-%{version}.tar.gz
 
-BuildRequires:  pkgconfig(dbus-glib-1)
-BuildRequires:  pkgconfig(dlog)
 BuildRequires:  pkgconfig(vconf)
 BuildRequires:  cmake
 
