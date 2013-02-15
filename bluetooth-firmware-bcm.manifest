@@ -1,0 +1,8 @@
+<manifest>
+    <define>
+        <domain name="bt_firmware"/>
+    </define>
+    <request>
+        <domain name="bt_firmware"/>
+    </request>
+</manifest>
