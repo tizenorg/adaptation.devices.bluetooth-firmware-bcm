@@ -1,11 +1,7 @@
 /*
- *  bluetooth-dev-tool
+ * setbd.c
  *
- * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved
- *
- * Contact:  Hocheol Seo <hocheol.seo@samsung.com>
- *           GirishAshok Joshi <girish.joshi@samsung.com>
- *           DoHyun Pyun <dh79.pyun@samsung.com>
+ * Copyright (c) 2012-2013 Samsung Electronics Co., Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +26,16 @@
 #include <time.h>
 #include <vconf.h>
 #include <glib.h>
+
+#ifdef __TI_PATCH__
+#define BT_CHIP_TI
+#else
+#ifdef __BROADCOM_PATCH__
+#define BT_CHIP_BROADCOM
+#else
+#define BT_CHIP_CSR
+#endif
+#endif
 
 #ifdef DEBUG_EN
 #define APP_DBG(format, args...)	printf("%s(), line[%d]: " format, __FUNCTION__, __LINE__, ##args)
@@ -56,6 +62,7 @@ static GMainLoop * loop;
 const char *DEFAULT_IMEI="004999010640000";
 static gboolean is_default_imei=FALSE;
 
+#if defined(BT_CHIP_CSR) || defined(BT_CHIP_BROADCOM)
 int addremoveBD(char* path, char* pskey){
 	FILE *fd, *new;
 	int ret;
@@ -96,7 +103,7 @@ int addremoveBD(char* path, char* pskey){
 
 		ret = fputs(cmp,new);
 	}
-	
+
 	return 0;
 }
 void makeRandomBD(unsigned char* buf){
@@ -123,7 +130,68 @@ void makeRandomBD(unsigned char* buf){
 	}
 	APP_DEBUG("\r\n");
 }
+#endif
 
+#ifdef BT_CHIP_TI
+int readBDaddrTI(void){
+	int i, cnt_lap=0, cnt_uap=0, cnt_nap=0;
+	int dev_id, fd, filedesc;
+	BD_ADDR_T bdaddr;
+	char address[18];
+	char nap[4], uap[2], lap[6];
+       int ret = 0;
+	dev_id=hci_get_route(NULL);
+	if(dev_id<0){
+		APP_DBG("Bluetooth device not available!!!\r\n");
+		return -1;
+	}
+	fd=hci_open_dev(dev_id);
+	if(fd<0){
+		APP_DBG("HCI open fail!!!\r\n");
+		return -2;
+	}
+
+	if(0>hci_read_bd_addr(fd, &bdaddr, 1000)){
+		APP_DBG("Read BD ADDR failed!!!\r\n");
+		return -3;
+	}
+	hci_close_dev(fd);
+
+	ba2str(&bdaddr, address);
+	for(i=0;i<17;i++){
+		if(':' == address[i])
+			continue;
+
+		if(5>i)
+			nap[cnt_nap++] = address[i];
+		else if(8>i)
+			uap[cnt_uap++] = address[i];
+		else
+			lap[cnt_lap++] = address[i];
+	}
+
+	APP_DBG("BT address [%s], nap[%c%c%c%c], uap[%c%c], lap[%c%c%c%c%c%c]\r\n",\
+	 address, nap[0], nap[1], nap[2], nap[3]\
+	, uap[0],uap[1]\
+	,lap[0], lap[1],lap[2],lap[3],lap[4],lap[5]);
+
+
+	filedesc=open(BD_ADDR_FILE, O_RDWR | O_CREAT | O_TRUNC | O_SYNC, 0644);
+	if(0>filedesc){
+		APP_DBG("File creation fail!!!\r\n");
+		return -4;
+	}
+	ret = write(filedesc, nap, 4);
+	ret = write(filedesc, "\n", 1);
+	ret = write(filedesc, uap, 2);
+	ret = write(filedesc, "\n", 1);
+	ret = write(filedesc, lap, 6);
+	ret = write(filedesc, "\n", 1);
+	close(filedesc);
+
+	return 0;
+}
+#endif
 int make_bt_address_from_tapi_imei(unsigned char * bt_address)
 {
 	char * temp=NULL;
@@ -139,11 +207,18 @@ int make_bt_address_from_tapi_imei(unsigned char * bt_address)
 		temp=vconf_get_str(VCONFKEY_TELEPHONY_IMEI);
 		APP_DEBUG("TAPI_IMEI: %s\n",temp);
 
+#ifdef IMEI_BASED_RAND_FEATURE
 		if(strcmp(temp,DEFAULT_IMEI)==0){
 			APP_DEBUG("TAPI_IMEI is defulat IMEI\n");
 			is_default_imei=TRUE;
 			return -ENODATA;
 		}
+#else
+		APP_DEBUG("Temporarily we skip reading TAPI_IMEI\n");
+		APP_DEBUG("  due to TAPI IMEI API is deprecated\n");
+		is_default_imei=TRUE;
+		return -ENODATA;
+#endif
 
 		if(strcmp(temp,"")==0)
 			return -ENODATA;
@@ -179,6 +254,8 @@ int make_bt_address_from_tapi_imei(unsigned char * bt_address)
 
 int make_bt_address(gboolean overwrite_bt_address)
 {
+#if defined(BT_CHIP_CSR) || defined(BT_CHIP_BROADCOM)
+
 	int fd;
 	int i;
 	unsigned char txt[BD_ADDR_LEN];
@@ -217,13 +294,60 @@ int make_bt_address(gboolean overwrite_bt_address)
 		APP_DEBUG("%s is already existed\n",BD_ADDR_FILE);
 		success_make_bt_address_from_imei=0;
 	}
-		
+
 	ret = read(fd, nap, 5);
 	ret = read(fd, uap, 3);
 	ret = read(fd, lap, 7);
 	close(fd);
 
+#if defined(BT_CHIP_CSR)
+	APP_DEBUG("nap[");
+	for(i=0;i<4;i++)
+		APP_DEBUG("%c",nap[i]);
+	APP_DEBUG("]\r\n");
+
+	APP_DEBUG("uap[");
+	for(i=0;i<2;i++)
+		APP_DEBUG("%c",uap[i]);
+	APP_DEBUG("]\r\n");
+
+	APP_DEBUG("lap[");
+	for(i=0;i<6;i++)
+		APP_DEBUG("%c",lap[i]);
+	APP_DEBUG("]\r\n");
+
+	sprintf(pskey, "&0001 = 0012 %c%c%c%c %c%c%c%c %c%c%c%c\r\n",\
+	 lap[0], lap[1], lap[2], lap[3], lap[4], lap[5],\
+	 uap[0], uap[1],\
+	 nap[0], nap[1], nap[2], nap[3]);
+
+	APP_DEBUG("BD PSKEY [");
+	for(i=0;i<PSKEY_LEN;i++)
+		APP_DEBUG("%c", pskey[i]);
+	APP_DEBUG("]\r\n");
+
+	ret = addremoveBD(PSR_FILE, pskey);
+#endif
 	return ret;
+#elif defined(BT_CHIP_TI)
+	int fd;
+	int ret;
+
+	fd=open(BD_ADDR_FILE, O_RDONLY, 0644);
+	if(0>fd){
+		APP_DBG("File not exists\r\n");
+		ret=readBDaddrTI();
+	}else{
+		APP_DBG("File exists\r\n");
+		close(fd);
+		ret=0;
+	}
+
+	return ret;
+#else
+	printf("error BT CHIP not defined!!!\n");
+	return 0;
+#endif
 }
 
 void vconf_cb(keynode_t *key, void * data)
@@ -272,12 +396,14 @@ int main()
 	if(success_make_bt_address_from_imei==0 || is_default_imei==TRUE)
 		exit(0);
 
+#ifdef IMEI_BASED_RAND_FEATURE
 	vconf_notify_key_changed(VCONFKEY_TELEPHONY_IMEI,vconf_cb,NULL);
 
 	g_timeout_add_seconds(10,exit_cb,NULL);
 	g_main_loop_run(loop);
 
 	vconf_ignore_key_changed(VCONFKEY_TELEPHONY_IMEI,vconf_cb);
+#endif
 
 	return 0;
 }
