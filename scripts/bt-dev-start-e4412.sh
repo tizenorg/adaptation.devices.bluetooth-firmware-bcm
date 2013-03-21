@@ -25,7 +25,7 @@ then
 	mknod $BT_UART_DEVICE c 204 64
 fi
 
-if [ ! -e /opt/etc/.bd_addr ]
+if [ ! -e /csa/bluetooth/.bd_addr ]
 then
 	# Set BT address
 	/usr/bin/setbd

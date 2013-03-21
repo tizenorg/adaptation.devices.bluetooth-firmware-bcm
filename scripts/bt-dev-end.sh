@@ -17,10 +17,10 @@ if [ $REVISION_NUM == "0006" ]; then
 	exit 0
 fi
 
-killall hciattach
-
 # Turn off Bluetooth Chip
 rfkill block bluetooth
+
+killall hciattach
 
 #if [ -e /sys/class/gpio/gpio17/value ]
 #then

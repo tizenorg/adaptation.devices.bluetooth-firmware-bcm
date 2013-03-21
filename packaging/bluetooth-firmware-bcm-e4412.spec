@@ -2,8 +2,8 @@ Name:       bluetooth-firmware-bcm-e4412
 Summary:    firmware and tools for bluetooth
 Version:    0.2.28
 Release:    1
-Group:      TO_BE_FILLED
-License:    TO_BE_FILLED
+Group:      Hardware Support/Handset
+License:    Apache License, Version 2.0
 Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
 
 BuildRequires:  pkgconfig(vconf)

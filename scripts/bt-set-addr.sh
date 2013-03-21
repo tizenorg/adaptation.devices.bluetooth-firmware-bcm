@@ -4,7 +4,7 @@
 # Script for setting Bluetooth Address
 #
 
-if [ -e /opt/etc/.bd_addr ]
+if [ -e /csa/bluetooth/.bd_addr ]
 then
 	echo "Already .bd_addr exists"
 	exit 0

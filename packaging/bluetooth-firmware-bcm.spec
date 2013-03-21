@@ -6,19 +6,35 @@ Group:      Hardware Support/Handset
 License:    Apache
 # NOTE: Source name does not match package name.  This should be
 # resolved in the future, by I don't have that power. - Ryan Ware
-Source0:    %{name}-%{version}.tar.gz
+Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
 
-BuildRequires:  pkgconfig(vconf)
 BuildRequires:  cmake
+BuildRequires:  pkgconfig(tapi)
 
 %description
- firmware and tools for bluetooth
+firmware and tools for bluetooth
 
+%package c210
+Summary:    c210 firmware and tools for bluetooth
+Group:      TO_BE/FILLED
+
+%description c210
+c210 firmware and tools for bluetooth
+
+%package e4412
+Summary:    e4412 firmware and tools for bluetooth
+Group:      TO_BE/FILLED
+
+%description e4412
+e4412 firmware and tools for bluetooth
 
 %prep
-%setup -q
+%setup -q -n bluetooth-firmware-bcm-%{version}
 
 %build
+export CFLAGS+=" -fpie -fvisibility=hidden"
+export LDFLAGS+=" -Wl,--rpath=/usr/lib -Wl,--as-needed -Wl,--unresolved-symbols=ignore-in-shared-libs -pie"
+
 cmake ./ -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPLUGIN_INSTALL_PREFIX=%{_prefix}
 make %{?jobs:-j%jobs}
 
@@ -26,17 +42,30 @@ make %{?jobs:-j%jobs}
 rm -rf %{buildroot}
 %make_install
 
-cp -rf %{buildroot}%{_prefix}/etc/bluetooth/bt-dev-start-c210.sh  %{buildroot}%{_prefix}/etc/bluetooth/bt-dev-start.sh
+%post c210
+rm -rf %{_prefix}/etc/bluetooth/bt-dev-start.sh
+ln -s %{_prefix}/etc/bluetooth/bt-dev-start-c210.sh %{_prefix}/etc/bluetooth/bt-dev-start.sh
 
-%files
+%post e4412
+rm -rf %{_prefix}/etc/bluetooth/bt-dev-start.sh
+ln -s %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh %{_prefix}/etc/bluetooth/bt-dev-start.sh
+
+%files c210
 %manifest bluetooth-firmware-bcm.manifest
 %defattr(-,root,root,-)
 %{_bindir}/bcmtool_4330b1
 %{_bindir}/setbd
 %{_prefix}/etc/bluetooth/BCM4330B1_002.001.003.0221.0265.hcd
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
-%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start.sh
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start-c210.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh
-%exclude %{_prefix}/etc/bluetooth/BCM4334B0_002.001.013.0079.0081.hcd
-%exclude %{_prefix}/etc/bluetooth/bt-dev-start-c210.sh
-%exclude %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh
+
+%files e4412
+%manifest bluetooth-firmware-bcm.manifest
+%defattr(-,root,root,-)
+%{_bindir}/bcmtool_4330b1
+%{_bindir}/setbd
+%{_prefix}/etc/bluetooth/BCM4334B0_002.001.013.0079.0081.hcd
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh
+%attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh
