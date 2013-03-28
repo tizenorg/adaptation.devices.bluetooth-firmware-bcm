@@ -1,6 +1,6 @@
 Name:       bluetooth-firmware-bcm
 Summary:    firmware and tools for bluetooth
-Version:    0.2.28
+Version:    0.2.29
 Release:    1
 Group:      Hardware Support/Handset
 License:    Apache
