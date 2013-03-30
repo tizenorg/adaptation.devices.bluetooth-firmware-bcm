@@ -41,7 +41,7 @@ else
 	echo "Bluetooth device is DOWN"
 	echo "Registering Bluetooth device"
 
-	$BCM_TOOL $BT_UART_DEVICE -FILE=/usr/etc/bluetooth/$BCM_FIRMWARE -BAUD=$UART_SPEED -ADDR=/opt/etc/.bd_addr -SETSCO=0,0,0,0,0,0,0,3,3,0 -LP > /dev/null 2>&1
+	$BCM_TOOL $BT_UART_DEVICE -FILE=/usr/etc/bluetooth/$BCM_FIRMWARE -BAUD=$UART_SPEED -ADDR=/csa/bluetooth/.bd_addr -SETSCO=0,0,0,0,0,0,0,3,3,0 -LP > /dev/null 2>&1
 
 	# Attaching Broadcom device
 	if (/usr/sbin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then
