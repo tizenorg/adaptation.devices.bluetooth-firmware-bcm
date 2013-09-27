@@ -41,6 +41,9 @@ make %{?jobs:-j%jobs}
 %install
 rm -rf %{buildroot}
 %make_install
+mkdir -p %{buildroot}/usr/share/license
+cp LICENSE.APLv2 %{buildroot}/usr/share/license/%{name}
+cp LICENSE.Broadcom %{buildroot}/usr/share/license/%{name}
 
 %post c210
 rm -rf %{_prefix}/etc/bluetooth/bt-dev-start.sh
@@ -59,6 +62,7 @@ ln -s %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh %{_prefix}/etc/bluetooth/bt
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start-c210.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh
+/usr/share/license/%{name}
 
 %files e4412
 %manifest bluetooth-firmware-bcm.manifest
@@ -69,3 +73,4 @@ ln -s %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh %{_prefix}/etc/bluetooth/bt
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start-e4412.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh
+/usr/share/license/%{name}
