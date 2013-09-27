@@ -43,7 +43,7 @@ rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/usr/share/license
 cp LICENSE.APLv2 %{buildroot}/usr/share/license/%{name}
-cp LICENSE.Broadcom %{buildroot}/usr/share/license/%{name}
+cat %{_builddir}/%{name}-%{version}/LICENSE.Broadcom >> %{buildroot}/usr/share/license/%{name}
 
 %post c210
 rm -rf %{_prefix}/etc/bluetooth/bt-dev-start.sh
