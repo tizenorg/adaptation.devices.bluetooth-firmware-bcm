@@ -9,7 +9,6 @@ License:    Apache
 Source0:    bluetooth-firmware-bcm-%{version}.tar.gz
 
 BuildRequires:  cmake
-BuildRequires:  pkgconfig(tapi)
 
 %description
 firmware and tools for bluetooth

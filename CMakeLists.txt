@@ -1,8 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
-INCLUDE(FindPkgConfig)
-pkg_check_modules(package REQUIRED glib-2.0 tapi)
-
 FOREACH(flag ${package_CFLAGS})
 	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
 ENDFOREACH(flag)
