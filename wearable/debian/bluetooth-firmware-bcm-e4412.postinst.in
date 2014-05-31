@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Change File Permission
+chmod 644 @PREFIX@/etc/bluetooth/BCM4334B0_002.001.013.0079.0081.hcd
+chmod 644 @PREFIX@/etc/bluetooth/BCM4334B0_002.001.013.0079.0084.hcd
+
+# root case
+if [ ${USER} = "root" ]
+then
+	chown root:root @PREFIX@/etc/bluetooth/BCM4334B0_002.001.013.0079.0081.hcd
+	chown root:root @PREFIX@/etc/bluetooth/BCM4334B0_002.001.013.0079.0084.hcd
+fi
