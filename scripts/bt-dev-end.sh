@@ -5,7 +5,7 @@
 #
 
 # Device down
-/usr/sbin/hciconfig hci0 down
+/usr/bin/hciconfig hci0 down
 
 # Turn off Bluetooth Chip
 rfkill block bluetooth

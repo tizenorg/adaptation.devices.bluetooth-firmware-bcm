@@ -511,7 +511,7 @@ UINT8 DownloadPatchram(char *patchram1)
 	ChangeBaudRate(921600);
 #endif
 
-	strcpy(prm, patchram1);
+	strncpy(prm, patchram1, 127);
 
 	fprintf(stderr, "Download Start\n");
 

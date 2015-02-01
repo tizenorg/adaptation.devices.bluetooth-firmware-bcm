@@ -56,9 +56,9 @@ fi
 rfkill unblock bluetooth
 
 echo "Check for Bluetooth device status"
-if (/usr/sbin/hciconfig | grep hci); then
+if (/usr/bin/hciconfig | grep hci); then
 	echo "Bluetooth device is UP"
-	/usr/sbin/hciconfig hci0 up
+	/usr/bin/hciconfig hci0 up
 else
 	echo "Bluetooth device is DOWN"
 	echo "Registering Bluetooth device"
@@ -121,7 +121,7 @@ else
 	echo "Try for hciattach"
 
 	# Attaching Broadcom device
-	if (/usr/sbin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then
+	if (/usr/bin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then
 		sleep 0.1
 		echo "HCIATTACH success"
 	else
@@ -131,5 +131,5 @@ else
 	fi
 fi
 
-#/usr/sbin/hciconfig hci0 down
+#/usr/bin/hciconfig hci0 down
 

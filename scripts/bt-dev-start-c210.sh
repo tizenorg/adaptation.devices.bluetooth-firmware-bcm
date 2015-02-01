@@ -6,25 +6,17 @@ BT_CHIP_TYPE=bcm2035
 BCM_TOOL=/usr/bin/bcmtool_4330b1
 BT_ADDR=/csa/bluetooth/.bd_addr
 
-BT_PLATFORM_DEFAULT_HCI_NAME="SLP2.0_BT"
+BT_PLATFORM_DEFAULT_HCI_NAME="TIZEN-Mobile"
 UART_SPEED=3000000
 
 #set default firmware
-#for SLP7_C210, SLP10_C210
-BCM_FIRMWARE=BCM4330B1_002.001.003.0013.0000_SS-SLP7-B42_NoExtLNA_37_4MHz-TEST-ONLY.hcd
+BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
 
 REVISION_NUM=`grep Revision /proc/cpuinfo | awk "{print \\$3}"`
 REVISION_HIGH=`echo $REVISION_NUM| cut -c1-2`
 REVISION_LOW=`echo $REVISION_NUM| cut -c3-`
 
 HARDWARE=`grep Hardware /proc/cpuinfo | awk "{print \\$3}"`
-
-if [ "$HARDWARE" = "U1SLP" ] ||
-   [ "$HARDWARE" = "U1HD" ]; then
-	echo $HARDWARE "BCM4330 B1"
-	BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
-fi
-echo $BCM_FIRMWARE
 
 if [ ! -e "$BT_UART_DEVICE" ]
 then
@@ -44,9 +36,9 @@ fi
 rfkill unblock bluetooth
 
 echo "Check for Bluetooth device status"
-if (/usr/sbin/hciconfig | grep hci); then
+if (/usr/bin/hciconfig | grep hci); then
 	echo "Bluetooth device is UP"
-	/usr/sbin/hciconfig hci0 up
+	/usr/bin/hciconfig hci0 up
 else
 	echo "Bluetooth device is DOWN"
 	echo "Registering Bluetooth device"
@@ -79,13 +71,13 @@ else
 	done
 
 	# Attaching Broadcom device
-	if (/usr/sbin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then
+	if (/usr/bin/hciattach $BT_UART_DEVICE -s $UART_SPEED $BT_CHIP_TYPE $UART_SPEED flow); then
 		sleep 0.1
+                /usr/bin/hciconfig hci0 name $BT_PLATFORM_DEFAULT_HCI_NAME
+                /usr/bin/hciconfig hci0 sspmode 1
 		echo "HCIATTACH success"
 	else
 		echo "HCIATTACH failed"
 		rfkill block bluetooth
 	fi
 fi
-
-#/usr/sbin/hciconfig hci0 down
