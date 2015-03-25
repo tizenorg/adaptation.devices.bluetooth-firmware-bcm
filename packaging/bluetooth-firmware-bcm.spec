@@ -29,9 +29,11 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%{_bindir}/bcmtool_4330b1
+#%{_bindir}/bcmtool_4330b1
+%{_bindir}/bcmtool_4358a1
 %{_bindir}/setbd
-%{_prefix}/etc/bluetooth/BCM4330B1_002.001.003.0221.0265.hcd
+#%{_prefix}/etc/bluetooth/BT_FW_BCM4330B1_002.001.003.0221.0265.hcd
+%{_prefix}/etc/bluetooth/BT_FW_BCM4358A1_001.002.005.0032.0066.hcd
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-end.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-dev-start.sh
 %attr(755,-,-) %{_prefix}/etc/bluetooth/bt-set-addr.sh

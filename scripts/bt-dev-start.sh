@@ -1,15 +1,17 @@
 #!/bin/sh
 
 # Script for registering Broadcom UART BT device
-BT_UART_DEVICE=/dev/ttySAC0
+BT_UART_DEVICE=/dev/ttySAC3
 BT_CHIP_TYPE=bcm2035
-BCM_TOOL=/usr/bin/bcmtool_4330b1
+#BCM_TOOL=/usr/bin/bcmtool_4330b1
+BCM_TOOL=/usr/bin/bcmtool_4358a1
 
 BT_PLATFORM_DEFAULT_HCI_NAME="TIZEN-Mobile"
-UART_SPEED=921600
+UART_SPEED=3000000
 
 #set default firmware
-BCM_FIRMWARE=BCM4330B1_002.001.003.0221.0265.hcd
+#BCM_FIRMWARE=BT_FW_BCM4330B1_002.001.003.0221.0265.hcd
+BCM_FIRMWARE=BT_FW_BCM4358A1_001.002.005.0032.0066.hcd
 
 REVISION_NUM=`grep Revision /proc/cpuinfo | awk "{print \\$3}"`
 REVISION_HIGH=`echo $REVISION_NUM| cut -c1-2`
