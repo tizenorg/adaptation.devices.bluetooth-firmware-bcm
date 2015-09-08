@@ -1,0 +1,48 @@
+###############################################################################
+#
+# THIS INFORMATION IS PROPRIETARY TO BROADCOM CORPORATION
+#
+# Product: Generic
+#
+# Mode: UART, Class 1, 37.4MHz, WLBGA_eLG
+#
+# Master CSP: 797152
+#
+###############################################################################
+
+This is an official release candidate version based on .0043.0000 baseline.
+
+====================
+  Release Notes
+====================
+
+06/17/2014
+
+1. This customer specific release is based on the following baseline
+
+    BCM4343A0_001.001.034.0043.0000\Generic\UART\37_4MHz\wlbga_eLG_lite
+
+
+2. Customization:
+============================
+(1) Program name: SEMCO SWB-B59
+(2) Clock source: 37.4MHz
+(3) Radio power class: 1.5
+(4) BB Register Bit Fields settings for PCM Slave.
+(6) fm_spurCancelOnThresh = 0xC4
+(7) Disable FMStandaloneTestMode(dynamic control of BB CLK)
+
+
+---------------------------------------------------
+Major changes since baseline .0031:
+---------------------------------------------------
+BLTH03155577 - PCM loopback does not work
+BLTH03144368 - fix interrupt locking issue in BT clock sleep
+BLTH03144323 - [RFFW] GFSK 12dBm power update
+BLTH03144410 - Expose LE power setting register
+BLTH03144443 - Fix a problem in the Tx Test function
+BLTH03136746 - Fix an issue wheare device could not enter into sleep again after A2DP streaming 
+BLTH03107192 - Fix for wrong sleep period of FM active monitor
+BLTH03107288 - LE test mode fix
+BLTH03087176 - Fix for high sleep current after turn on/off FM while BT and WLAN are ON.
+BLTH03078769 - fix wrong interval notification on mode change event

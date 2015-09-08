@@ -1,0 +1,37 @@
+###############################################################################
+#
+# THIS INFORMATION IS PROPRIETARY TO BROADCOM CORPORATION
+#
+# Product: Generic
+#
+# Mode: UART, Class 1, 37.4MHz, 4343W(WLCSP)
+#
+# Master CSP: 809502
+#
+###############################################################################
+
+This is an official release candidate version based on .0009.0000 baseline.
+
+====================
+  Release Notes
+====================
+
+07/31/2014
+
+1. This customer specific release is based on the following baseline
+
+    BCM4343A1_001.002.009.0009.0000\Generic\UART\37_4MHz\wlcsp_Semco_B59
+
+
+2. Customization:
+============================
+(1) Program name: Samsung Ponte_Solo-3G(Gear3)
+(2) Clock source: 37.4MHz
+(3) Radio power class: 1.5
+(4) BB Register Bit Fields settings for PCM Slave
+(5) No FMRX (BT_I2S_WS/BT_I2S_CLK/BT_I2S_DI : OPEN)
+(6) Enable BR/EDR RSSI monitoring
+(7) TCA/TSSI table update
+
+
+

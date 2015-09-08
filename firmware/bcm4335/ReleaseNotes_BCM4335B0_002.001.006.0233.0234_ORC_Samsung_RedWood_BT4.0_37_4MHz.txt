@@ -1,0 +1,45 @@
+###############################################################################
+#
+# THIS INFORMATION IS PROPRIETARY TO BROADCOM CORPORATION
+#
+# Product: Generic
+#
+# Mode: UART, Class 1, 37.4Mhz, RedWood(SEMCO-B62)
+#
+# Master CSP: 524543
+#
+# Description : MSM8974 / Tyzen OS(SLP) / BlueZ
+#               WBS / PCM Slave / No FMRX
+#
+###############################################################################
+
+
+This is an ORC(Official Release Candidate) version based on .0233.0000 baseline for RedWood.
+
+====================
+  Release Notes
+====================
+
+07/03/2013
+
+1. This customer specific release is based on the following baseline
+
+    BCM4335B0_002.001.006.0203.0000\Generic\UART\37_4MHz\wlcsp_Semco_B62
+
+
+2. Customization:
+============================
+(1) Program name: Samsung RedWood(Semco B62)
+(2) Clock source: 37.4Mhz XTAL
+(3) Radio power class: 1.5
+(4) BT4.0
+(5) BB Register Bit Fields settings for Sleep mode BT_GPIO0/BT_GPIO1
+(6) disableDriftPrediction
+(7) Enable enableNullEscoPatch
+(8) Config cfg_skip_pri_adjust_a2dp_in_pause=1
+(9) Tuned AFH parameters
+(10) Limited output power
+(11) Enable 2 stopbits setting for QCOM AP
+(12) Increasing EDR relative power for Benz carkit A2DP choppiness @ Gumi
+(13) le_power_value=0x12 to compensate filter loss
+
