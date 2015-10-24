@@ -2,7 +2,8 @@
     <define>
         <domain name="bt_firmware"/>
     </define>
-    <request>
-        <domain name="bt_firmware"/>
-    </request>
+    <assign>
+        <filesystem path="/usr/etc/bluetooth/*" label="_" exec_label="none"/>
+	<filesystem path="/etc/smack/accesses.d/bluetooth-firmware-bcm.rule" label="_" exec_label="none"/>
+    </assign>
 </manifest>

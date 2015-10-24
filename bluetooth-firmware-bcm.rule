@@ -1,0 +1,9 @@
+bt_firmware bluez rwx---
+bluez bt_firmware rwx---
+dbus bt_firmware  rwx---
+systemd::script::bt_firmware bluez rwx---
+systemd::script::bt_firmware bt_firmware rwx---
+systemd::script::bt_firmware procps r-x---
+systemd::script::bt_firmware rfkill r-x---
+systemd::script::bt_firmware system::sys_logging --x---
+systemd::script::bt_firmware wifi-loader r-----

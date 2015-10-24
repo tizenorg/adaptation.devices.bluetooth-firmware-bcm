@@ -4,13 +4,18 @@
 # Script for stopping Broadcom UART Bluetooth stack
 #
 
+PGREP="/usr/bin/pgrep"
+
 # Device down
 /usr/bin/hciconfig hci0 down
 
 # Turn off Bluetooth Chip
-rfkill block bluetooth
+/usr/sbin/rfkill block bluetooth
 
-killall hciattach
+#/usr/bin/killall hciattach
+# Do NOT use killall due to smack
+hciattach_pid=`${PGREP} hciattach`
+kill $hciattach_pid
 
 #if [ -e /sys/class/gpio/gpio17/value ]
 #then

@@ -1,5 +1,5 @@
 /*
- * Name: bcmtool_4330m0_m.c
+ * Name: bcmtool_4330b1.c
  *
  * Description: Download a patchram files for the HCD format
  *

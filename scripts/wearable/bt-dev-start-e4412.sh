@@ -5,7 +5,7 @@
 #
 BT_UART_DEVICE=/dev/ttySAC0
 BT_CHIP_TYPE=bcm2035
-BCM_TOOL=/usr/bin/bcmtool
+BCM_TOOL=/usr/bin/bcmtool_4330b1
 
 BT_ADDR=/csa/bluetooth/.bd_addr
 
@@ -53,7 +53,7 @@ then
 	exit 1
 fi
 
-rfkill unblock bluetooth
+/usr/sbin/rfkill unblock bluetooth
 
 echo "Check for Bluetooth device status"
 if (/usr/bin/hciconfig | grep hci); then
@@ -84,7 +84,7 @@ else
 				echo "time expired happen $i"
 				kill -TERM $bcmtool_pid
 				break
-#				rfkill block bluetooth
+#				/usr/sbin/rfkill block bluetooth
 #				exit 1
 			fi
 
@@ -112,7 +112,7 @@ else
 		if [ $c -eq $MAXBCMTOOLTRY ]
 		then
 			echo "***** No Chance to activate, count=$c ******"
-			rfkill block bluetooth
+			/usr/sbin/rfkill block bluetooth
 			exit 1
 		fi
 
@@ -126,7 +126,7 @@ else
 		echo "HCIATTACH success"
 	else
 		echo "HCIATTACH failed"
-		rfkill block bluetooth
+		/usr/sbin/rfkill block bluetooth
 		cp /var/log/messages /var/lib/bluetooth/
 	fi
 fi

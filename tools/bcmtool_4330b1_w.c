@@ -1,5 +1,5 @@
 /*
- * Name: bcmtool_4330b3_w.c
+ * Name: bcmtool_4330b1.c
  *
  * Description: Download a patchram files for the HCD format
  *
@@ -46,6 +46,12 @@
 /* Pre baudrate change for fast download */
 #define HIGH_SPEED_PATCHRAM_DOWNLOAD  TRUE
 
+/* Host Stack Idle Threshold */
+#define HCILP_IDLE_THRESHOLD          0x01
+
+/* Host Controller Idle Threshold */
+#define HCILP_HC_IDLE_THRESHOLD       0x01
+
 /* BT_WAKE Polarity - 0=Active Low, 1= Active High */
 #define HCILP_BT_WAKE_POLARITY        1
 
@@ -57,6 +63,19 @@
 
 #define RELEASE_DATE "2011.02.07"
 #define DEBUG 1
+
+/*  Broadcom AXI patch for BCM4335 chipset only */
+/* #define DEPLOY_4335A_AXI_BRIDGE_PATCH TRUE */
+
+/* The fix for AXI bridge contention between BT and WLAN:
+ *
+ *  Set this TRUE only when
+ *      1. the platform is using BCM4335A or BCM4335B0, and
+ *      2. Kernel source has implemented AXI BRIDGE lock logic.
+ */
+#ifndef DEPLOY_4335A_AXI_BRIDGE_PATCH
+#define DEPLOY_4335A_AXI_BRIDGE_PATCH   FALSE
+#endif
 
 typedef unsigned char UINT8;
 typedef unsigned short UINT16;
@@ -112,7 +131,7 @@ typedef UINT8 BD_ADDR[BD_ADDR_LEN];	/* Device address */
 #define HCI_ARM_MEM_POKE                          0x05
 
 #define BTUI_MAX_STRING_LENGTH_PER_LINE           255
-#define HCI_BRCM_WRITE_SLEEP_MODE_LENGTH          12
+#define HCI_BRCM_WRITE_SLEEP_MODE_LENGTH          10
 
 #define HCI_BRCM_UPDATE_BAUD_RATE_ENCODED_LENGTH    0x02
 #define HCI_BRCM_UPDATE_BAUD_RATE_UNENCODED_LENGTH  0x06
@@ -182,26 +201,6 @@ BOOLEAN debug_mode = FALSE;	/* Debug Mode Enable */
 BOOLEAN use_two_stop_bits = FALSE;     /* Flag of two stop bits for tty */
 
 unsigned char buffer[1024];
-
-typedef enum {
-	BCM_UNKNOWN = 0,
-	BCM4330,
-	BCM4334W,
-	BCM4343W,
-} bcm_product_type;
-
-bcm_product_type bcm_target_product = BCM_UNKNOWN;
-
-static struct {
-	bcm_product_type bcm_product;
-	char *name;
-} bcm_product_table[] = {
-	{ BCM_UNKNOWN,	"UNKNOWN"},
-	{ BCM4330,	"BCM4330"},
-	{ BCM4334W,	"BCM4334W"},
-	{ BCM4343W,	"BCM4343W"},
-	{ 0, NULL }
-};
 
 struct termios termios;
 
@@ -354,6 +353,125 @@ void DisplayProgress(int total, int val)
 #endif
 }
 
+#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
+/* 4335A/B0 AXI BRIDEG lock cookie */
+struct btlock {
+    int lock;
+    int cookie;
+};
+
+#define AXI_LOCK_COOKIE ('B' | 'T'<<8 | '3'<<16 | '5'<<24)  /* BT35 */
+#define AXI_LOCK_FS_NODE "/dev/btlock"
+
+static const UINT8 bcm4335a_axi_patch_addr[4] =
+{
+    0x00, 0x02, 0x0d, 0x00
+};
+
+static const UINT8 bcm4335a_axi_patch[] =
+{
+    0x00, 0x02, 0x0d, 0x00,		/* bcm4335a_axi_patch_addr */
+    0x70, 0xb5, 0x0c, 0x49, 0x4c, 0xf6, 0x20, 0x30,
+    0x8a, 0xf7, 0xbb, 0xf9, 0x01, 0x28, 0x0d, 0xd1,
+    0x8a, 0xf7, 0x80, 0xf9, 0x08, 0xb1, 0x04, 0x25,
+    0x00, 0xe0, 0x05, 0x25, 0x00, 0x24, 0x03, 0xe0,
+    0x8a, 0xf7, 0x74, 0xf9, 0x64, 0x1c, 0xe4, 0xb2,
+    0xac, 0x42, 0xf9, 0xd3, 0xbd, 0xe8, 0x70, 0x40,
+    0x8a, 0xf7, 0x7f, 0xb9, 0xb0, 0x9b, 0x04, 0x00
+};
+
+/*******************************************************************************
+**
+** Function         hw_4335_dl_axi_patch
+**
+** Description      Download 4335Ax/4335B0 AXI BRIDGE patch
+**
+** Returns          TRUE, if fw patch is sent
+**                  FALSE, otherwise
+**
+*******************************************************************************/
+static UINT8 hw_4335_dl_axi_patch(void)
+{
+	SendCommand(HCI_VSC_WRITE_RAM, sizeof(bcm4335a_axi_patch),
+					(UINT8 *) bcm4335a_axi_patch);
+	read_event(fd, buffer);
+
+	DEBUG0("hw_4335_dl_axi_patch downloading done");
+
+	SendCommand(HCI_VSC_LAUNCH_RAM, sizeof(bcm4335a_axi_patch_addr),
+					(UINT8 *) bcm4335a_axi_patch_addr);
+	read_event(fd, buffer);
+
+	DEBUG0("hw_4335_dl_axi_patch launching done");
+
+	return TRUE;
+}
+
+/*******************************************************************************
+**
+** Function         hw_4335_release_axi_bridge_lock
+**
+** Description      Notify kernel to release the AXI BRIDGE lock which was
+**                  acquired earlier in rfkill driver when powering on BT
+**                  Controller
+**
+** Returns          None
+**
+*******************************************************************************/
+void hw_4335_axi_bridge_lock(void)
+{
+    int fd, ret;
+    struct btlock lock;
+
+    lock.cookie = AXI_LOCK_COOKIE;
+    lock.lock = 1;
+
+    fd = open(AXI_LOCK_FS_NODE, O_RDWR);
+    if (fd >= 0)
+    {
+        ret = write(fd, &lock, sizeof(lock));
+        DEBUG0("4335 AXI BRIDGE lock");
+        close(fd);
+    }
+    else
+    {
+        DEBUG1("Failed to unlock AXI LOCK -- can't open %s", AXI_LOCK_FS_NODE);
+    }
+}
+
+/*******************************************************************************
+**
+** Function         hw_4335_release_axi_bridge_lock
+**
+** Description      Notify kernel to release the AXI BRIDGE lock which was
+**                  acquired earlier in rfkill driver when powering on BT
+**                  Controller
+**
+** Returns          None
+**
+*******************************************************************************/
+void hw_4335_release_axi_bridge_lock(void)
+{
+    int fd, ret;
+    struct btlock lock;
+
+    lock.cookie = AXI_LOCK_COOKIE;
+    lock.lock = 0;
+
+    fd = open(AXI_LOCK_FS_NODE, O_RDWR);
+    if (fd >= 0)
+    {
+        ret = write(fd, &lock, sizeof(lock));
+        DEBUG0("Releasing 4335 AXI BRIDGE lock");
+        close(fd);
+    }
+    else
+    {
+        DEBUG1("Failed to unlock AXI LOCK -- can't open %s", AXI_LOCK_FS_NODE);
+    }
+}
+#endif 	/* (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE) */
+
 UINT8 DownloadPatchram(char *patchram1)
 {
 	UINT32 len;
@@ -372,11 +490,27 @@ UINT8 DownloadPatchram(char *patchram1)
 	read_event(fd, buffer);
 	alarm(0);
 
+#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
+	char *p_tmp;
+
+	SendCommand(HCI_READ_LOCAL_NAME, 0, NULL);
+	read_event(fd, buffer);
+
+	p_tmp = strstr((char *)(buffer + 7), "BCM4335");
+	DEBUG1( "chip_name [%s]\n", p_tmp);
+
+	if ((p_tmp != NULL) &&
+	    ((p_tmp[7] == 'A') /* 4335A */||
+	     ((p_tmp[7] == 'B') && (p_tmp[8] == '0')) /* 4335B0 */)) {
+		hw_4335_dl_axi_patch();
+	}
+#endif
+
 #if ( HIGH_SPEED_PATCHRAM_DOWNLOAD == TRUE )
 	ChangeBaudRate(3000000);
 #endif
 
-	strcpy(prm, patchram1);
+	strncpy(prm, patchram1, 127);
 
 	fprintf(stderr, "Download Start\n");
 
@@ -413,12 +547,10 @@ UINT8 DownloadPatchram(char *patchram1)
 	}
 	fclose(pFile);
 
-	if (bcm_target_product == BCM4343W) {
-		fprintf(stderr, "Delay 200ms for BCM4343W Wireless Charging Feature\n");
-		usleep(200000);		/*200ms delay */
-	} else {
-		usleep(100000);		/*100ms delay */
-	}
+#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
+	hw_4335_release_axi_bridge_lock();
+#endif
+	usleep(100000);		/*100ms delay */
 
 	tcflush(fd, TCIOFLUSH);
 	tcgetattr(fd, &termios);
@@ -459,26 +591,6 @@ void SetScanEnable(void)
 
 	scan_data[0] = 0x03;
 	SendCommand(HCI_WRITE_SCAN_ENABLE, 1, &scan_data[0]);
-	read_event(fd, buffer);
-}
-
-/* This patch has been added to write PCM setting for Ponte */
-void SetAudio_for_PCM(void)
-{
-	fprintf(stderr, "Write Audio parameter for PCM\n");
-
-	vsc_for_pcm_config[0] = 0x0;
-	vsc_for_pcm_config[1] = 0x0;
-	vsc_for_pcm_config[2] = 0x3; /* PCM format 16bit */
-	vsc_for_pcm_config[3] = 0x0;
-	vsc_for_pcm_config[4] = 0x0;
-
-	DEBUG5("vsc_for_pcm_config = {%d,%d,%d,%d,%d}\n", vsc_for_pcm_config[0],
-	       vsc_for_pcm_config[1], vsc_for_pcm_config[2],
-	       vsc_for_pcm_config[3], vsc_for_pcm_config[4]);
-
-	SendCommand(VSC_WRITE_PCM_DATA_FORMAT_PARAM, 5,
-		    (UINT8 *) vsc_for_pcm_config);
 	read_event(fd, buffer);
 }
 
@@ -523,24 +635,11 @@ void SetScoConf(UINT8 p0, UINT8 p1, UINT8 p2, UINT8 p3, UINT8 p4)
 
 void HCILP_Enable(BOOLEAN on)
 {
-	/* Host Stack Idle Threshold */
-	UINT8 hcilp_idle_threshold = 0x01;
-
-	/* Host Controller Idle Threshold */
-	UINT8 hcilp_hc_idle_threshold = 0x01;
-
-	if (bcm_target_product == BCM4343W) {
-		hcilp_idle_threshold = 0x0A;
-		hcilp_hc_idle_threshold = 0x0A;
-	}
-
-	fprintf(stderr, "Set Low Power mode %d for %s\n", on,
-				bcm_product_table[bcm_target_product].name);
-
+	fprintf(stderr, "Set Low Power mode %d\n", on);
 	UINT8 data[HCI_BRCM_WRITE_SLEEP_MODE_LENGTH] = {
 		0x01,		/* Sleep Mode algorithm 1 */
-		hcilp_idle_threshold,	/* Host Idle Treshold */
-		hcilp_hc_idle_threshold,	/* Host Controller Idle Treshold*//* this should be less than scan interval. */
+		HCILP_IDLE_THRESHOLD,	/* Host Idle Treshold in 300ms */
+		HCILP_HC_IDLE_THRESHOLD,	/* Host Controller Idle Treshold in 300ms *//* this should be less than scan interval. */
 		HCILP_BT_WAKE_POLARITY,	/* BT_WAKE Polarity - 0=Active Low, 1= Active High */
 		HCILP_HOST_WAKE_POLARITY,	/* HOST_WAKE Polarity - 0=Active Low, 1= Active High */
 		0x01,		/* Allow host Sleep during SCO */
@@ -548,8 +647,6 @@ void HCILP_Enable(BOOLEAN on)
 		0x00,		/* UART_TXD Tri-State : 0x00 = Do not tri-state UART_TXD in sleep mode */
 		0x00,		/* NA to Mode 1 */
 		0x00,		/* NA to Mode 1 */
-		0x00,		/* NA*/
-		0x00,		/* NA*/
 	};
 
 	if (on) {
@@ -683,26 +780,6 @@ void EnableTestMode(void)
 	fprintf(stderr, "Enable Device Under Test\n");
 }
 
-void GetLocalName(void)
-{
-	UINT8 *data = NULL;
-
-	/* HCI reset */
-	DEBUG0("HCI reset\n");
-	SendCommand(HCI_RESET, 0, NULL);
-	alarm(1);
-	read_event(fd, buffer);
-	alarm(0);
-
-	DEBUG0("Read Local Name\n");
-	SendCommand(HCI_READ_LOCAL_NAME, 0, NULL);
-	read_event(fd, buffer);
-
-	data = &buffer[7];
-
-	fprintf(stderr, "Chip Name is %s\n", data);
-}
-
 void SetLocalFeatures(void)
 {
 	UINT8 *data = NULL;
@@ -741,26 +818,6 @@ void EnbleHCI(void)
 
 }
 
-void SetBcmProductType(char *bcm_product_name)
-{
-	int i = 0;
-
-	if (bcm_product_name == NULL) {
-		bcm_target_product = BCM_UNKNOWN;
-		return;
-	}
-
-	for (i = 0; bcm_product_table[i].name != NULL; i++) {
-		if (!strcasecmp(bcm_product_table[i].name,bcm_product_name)) {
-			bcm_target_product = bcm_product_table[i].bcm_product;
-			fprintf(stderr, "Detected name is %s\n",
-						bcm_product_table[i].name);
-		}
-	}
-
-	return;
-}
-
 void print_usage(void)
 {
 	fprintf(stderr, "\n");
@@ -775,20 +832,16 @@ void print_usage(void)
 	fprintf(stderr,
 		"  -ADDR    BD addr file name      EX) -ADDR=.bdaddr\n");
 	fprintf(stderr, "  -SCO     Enable SCO/PCM config  EX) -SCO\n");
-	fprintf(stderr, "  -PCM_SETTING     Write PCM config EX) -PCM_SETTING\n");
 	fprintf(stderr,
 		"  -SETSCO  SCO/PCM values verify  EX) -SETSCO=0,1,0,1,1,0,0,3,3,0\n");
 	fprintf(stderr, "  -LP      Enable Low power       EX) -LP\n");
 	fprintf(stderr, "  -FEATURE Set local Feature      EX) -FEATURE\n");
-	fprintf(stderr, "  -GETNAME Get local Name         EX) -GETNAME\n");
 	fprintf(stderr,
 		"  -DUT     Enable DUT mode(do not use with -LP) EX) -DUT\n");
 	fprintf(stderr,
 		"  -ATTACH  Attach BT controller to BlueZ stack  EX) -ATTACH\n");
 	fprintf(stderr, "  -DEBUG   Debug message          EX) -DEBUG\n");
 	fprintf(stderr, "  -CSTOPB  Set two stop bits for tty EX) -CSTOPB\n");
-	fprintf(stderr, "  -TYPE    BCM Product name       EX) -TYPE=BCM4343W\n");
-
 	fprintf(stderr, "\n");
 }
 
@@ -803,6 +856,11 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "BRCM BT tool for Linux    release %s\n",
 			RELEASE_DATE);
 	}
+
+#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
+	hw_4335_axi_bridge_lock();
+	usleep(50000);
+#endif
 
 	/* Open dev port */
 	if ((fd = open(argv[1], O_RDWR | O_NOCTTY)) == -1) {
@@ -836,18 +894,13 @@ int main(int argc, char *argv[])
 		if (strstr(ptr, "-DEBUG")) {
 			debug_mode = TRUE;
 			DEBUG0("DEBUG On\n");
+			break;
+		}
 
-		} else if (strstr(ptr, "-CSTOPB")) {
+		if (strstr(ptr, "-CSTOPB")) {
 			use_two_stop_bits = TRUE;
 			DEBUG0("Use two stop bits for tty\n");
-
-		} else if (strstr(ptr, "-TYPE=")) {
-			char bcm_product_name[128];
-			ptr +=6;
-
-			strncpy(bcm_product_name,ptr,8);
-
-			SetBcmProductType(bcm_product_name);
+			break;
 		}
 	}
 
@@ -931,8 +984,6 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "-ADDR: file open fail\n");
 				exit_err(1);
 			}
-		} else if (strstr(ptr, "-PCM_SETTING")) {
-			SetAudio_for_PCM();
 
 		} else if (strstr(ptr, "-SCO")) {
 			SetAudio();
@@ -963,8 +1014,6 @@ int main(int argc, char *argv[])
 			EnableTestMode();
 		} else if (strstr(ptr, "-FEATURE")) {
 			SetLocalFeatures();
-		} else if (strstr(ptr, "-GETNAME")) {
-			GetLocalName();
 		} else if (strstr(ptr, "-ATTACH")) {
 			EnbleHCI();
 			while (1) {
@@ -972,7 +1021,7 @@ int main(int argc, char *argv[])
 			}
 		} else if (strstr(ptr, "-DEBUG")) {
 		} else if (strstr(ptr, "-CSTOPB")) {
-		} else if (strstr(ptr, "-TYPE")) {
+
 		} else {
 			fprintf(stderr, "Invalid parameter(s)!\n");
 			exit_err(1);

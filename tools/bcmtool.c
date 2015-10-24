@@ -1,23 +1,11 @@
-/*
- * Name: bcmtool_4330b2_w.c
- *
- * Description: Download a patchram files for the HCD format
- *
- * Copyright (c) 2012-2013, Broadcom Corp., All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *              http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
+/*****************************************************************************
+**
+**  Name:          bcmtool.c
+**
+**  Description:   Download a patchram files for the HCD format
+**
+**  Copyright (c) 2000-2009, Broadcom Corp., All Rights Reserved.
+******************************************************************************/
 
 #include <stdio.h>
 #include <errno.h>
@@ -46,11 +34,8 @@
 /* Pre baudrate change for fast download */
 #define HIGH_SPEED_PATCHRAM_DOWNLOAD  TRUE
 
-/* Host Stack Idle Threshold */
-#define HCILP_IDLE_THRESHOLD          0x01
-
-/* Host Controller Idle Threshold */
-#define HCILP_HC_IDLE_THRESHOLD       0x01
+/* UART clock setting for patcram download */
+#define UART_CLOCK_SETTING  FALSE
 
 /* BT_WAKE Polarity - 0=Active Low, 1= Active High */
 #define HCILP_BT_WAKE_POLARITY        1
@@ -63,19 +48,6 @@
 
 #define RELEASE_DATE "2011.02.07"
 #define DEBUG 1
-
-/*  Broadcom AXI patch for BCM4335 chipset only */
-/* #define DEPLOY_4335A_AXI_BRIDGE_PATCH TRUE */
-
-/* The fix for AXI bridge contention between BT and WLAN:
- *
- *  Set this TRUE only when
- *      1. the platform is using BCM4335A or BCM4335B0, and
- *      2. Kernel source has implemented AXI BRIDGE lock logic.
- */
-#ifndef DEPLOY_4335A_AXI_BRIDGE_PATCH
-#define DEPLOY_4335A_AXI_BRIDGE_PATCH   FALSE
-#endif
 
 typedef unsigned char UINT8;
 typedef unsigned short UINT16;
@@ -123,6 +95,7 @@ typedef UINT8 BD_ADDR[BD_ADDR_LEN];	/* Device address */
 #define VSC_WRITE_UART_CLOCK_SETTING              (0x0045 | HCI_GRP_VENDOR_SPECIFIC)
 #define HCI_VSC_WRITE_RAM                         (0x004C | HCI_GRP_VENDOR_SPECIFIC)
 #define HCI_VSC_LAUNCH_RAM                        (0x004E | HCI_GRP_VENDOR_SPECIFIC)
+#define HCI_WRITE_I2SPCM_INTERFACE_PARAM  (0x006D | HCI_GRP_VENDOR_SPECIFIC)
 
 #define VOICE_SETTING_MU_LAW_MD                   0x0100
 #define VOICE_SETTING_LINEAR_MD                   0x0060
@@ -131,7 +104,7 @@ typedef UINT8 BD_ADDR[BD_ADDR_LEN];	/* Device address */
 #define HCI_ARM_MEM_POKE                          0x05
 
 #define BTUI_MAX_STRING_LENGTH_PER_LINE           255
-#define HCI_BRCM_WRITE_SLEEP_MODE_LENGTH          10
+#define HCI_BRCM_WRITE_SLEEP_MODE_LENGTH          12
 
 #define HCI_BRCM_UPDATE_BAUD_RATE_ENCODED_LENGTH    0x02
 #define HCI_BRCM_UPDATE_BAUD_RATE_UNENCODED_LENGTH  0x06
@@ -186,7 +159,7 @@ UINT8 vsc_for_sco_pcm[5] = { 0x00, 0x01, 0x00, 0x01, 0x01 };
 /*
                     Neverland : PCM, 256, short, master ,master
                     Volance   : PCM, 256, short, master ,master
-                    
+
                     Byte1 -- 0 for PCM 1 for UART or USB
                     Byte2 -- 0 : 128, 1: 256, 2:512, 3:1024, 4:2048 Khz
                     Byte3 -- 0 for short frame sync 1 for long frame sync
@@ -194,22 +167,27 @@ UINT8 vsc_for_sco_pcm[5] = { 0x00, 0x01, 0x00, 0x01, 0x01 };
                     Byte5 -- 0 for slave 1 for master
 */
 
+UINT8 vsc_for_i2c_param[4] = { 0x01, 0x00, 0x00, 0x01 };
+
 int fd;				/* HCI handle */
 
 BOOLEAN debug_mode = FALSE;	/* Debug Mode Enable */
 
 BOOLEAN use_two_stop_bits = FALSE;     /* Flag of two stop bits for tty */
 
+/* Flag of delay(50ms) right before starting firmware download for old bcm such as 4334B0 */
+BOOLEAN add_delay_right_before_download = FALSE;
+
 unsigned char buffer[1024];
 
 struct termios termios;
 
-void ChangeBaudRate(UINT32 baudrate);
+void ChangeBaudRate(UINT32 baudrate, BOOLEAN isCan2stopbit);
 
 void exit_err(UINT8 err)
 {
 #if ( HIGH_SPEED_PATCHRAM_DOWNLOAD == TRUE )
-	ChangeBaudRate(115200);
+	ChangeBaudRate(115200, FALSE);
 #endif
 	exit(err);
 }
@@ -353,126 +331,7 @@ void DisplayProgress(int total, int val)
 #endif
 }
 
-#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
-/* 4335A/B0 AXI BRIDEG lock cookie */
-struct btlock {
-    int lock;
-    int cookie;
-};
-
-#define AXI_LOCK_COOKIE ('B' | 'T'<<8 | '3'<<16 | '5'<<24)  /* BT35 */
-#define AXI_LOCK_FS_NODE "/dev/btlock"
-
-static const UINT8 bcm4335a_axi_patch_addr[4] =
-{
-    0x00, 0x02, 0x0d, 0x00
-};
-
-static const UINT8 bcm4335a_axi_patch[] =
-{
-    0x00, 0x02, 0x0d, 0x00,		/* bcm4335a_axi_patch_addr */
-    0x70, 0xb5, 0x0c, 0x49, 0x4c, 0xf6, 0x20, 0x30,
-    0x8a, 0xf7, 0xbb, 0xf9, 0x01, 0x28, 0x0d, 0xd1,
-    0x8a, 0xf7, 0x80, 0xf9, 0x08, 0xb1, 0x04, 0x25,
-    0x00, 0xe0, 0x05, 0x25, 0x00, 0x24, 0x03, 0xe0,
-    0x8a, 0xf7, 0x74, 0xf9, 0x64, 0x1c, 0xe4, 0xb2,
-    0xac, 0x42, 0xf9, 0xd3, 0xbd, 0xe8, 0x70, 0x40,
-    0x8a, 0xf7, 0x7f, 0xb9, 0xb0, 0x9b, 0x04, 0x00
-};
-
-/*******************************************************************************
-**
-** Function         hw_4335_dl_axi_patch
-**
-** Description      Download 4335Ax/4335B0 AXI BRIDGE patch
-**
-** Returns          TRUE, if fw patch is sent
-**                  FALSE, otherwise
-**
-*******************************************************************************/
-static UINT8 hw_4335_dl_axi_patch(void)
-{
-	SendCommand(HCI_VSC_WRITE_RAM, sizeof(bcm4335a_axi_patch),
-					(UINT8 *) bcm4335a_axi_patch);
-	read_event(fd, buffer);
-
-	DEBUG0("hw_4335_dl_axi_patch downloading done");
-
-	SendCommand(HCI_VSC_LAUNCH_RAM, sizeof(bcm4335a_axi_patch_addr),
-					(UINT8 *) bcm4335a_axi_patch_addr);
-	read_event(fd, buffer);
-
-	DEBUG0("hw_4335_dl_axi_patch launching done");
-
-	return TRUE;
-}
-
-/*******************************************************************************
-**
-** Function         hw_4335_release_axi_bridge_lock
-**
-** Description      Notify kernel to release the AXI BRIDGE lock which was
-**                  acquired earlier in rfkill driver when powering on BT
-**                  Controller
-**
-** Returns          None
-**
-*******************************************************************************/
-void hw_4335_axi_bridge_lock(void)
-{
-    int fd, ret;
-    struct btlock lock;
-
-    lock.cookie = AXI_LOCK_COOKIE;
-    lock.lock = 1;
-
-    fd = open(AXI_LOCK_FS_NODE, O_RDWR);
-    if (fd >= 0)
-    {
-        ret = write(fd, &lock, sizeof(lock));
-        DEBUG0("4335 AXI BRIDGE lock");
-        close(fd);
-    }
-    else
-    {
-        DEBUG1("Failed to unlock AXI LOCK -- can't open %s", AXI_LOCK_FS_NODE);
-    }
-}
-
-/*******************************************************************************
-**
-** Function         hw_4335_release_axi_bridge_lock
-**
-** Description      Notify kernel to release the AXI BRIDGE lock which was
-**                  acquired earlier in rfkill driver when powering on BT
-**                  Controller
-**
-** Returns          None
-**
-*******************************************************************************/
-void hw_4335_release_axi_bridge_lock(void)
-{
-    int fd, ret;
-    struct btlock lock;
-
-    lock.cookie = AXI_LOCK_COOKIE;
-    lock.lock = 0;
-
-    fd = open(AXI_LOCK_FS_NODE, O_RDWR);
-    if (fd >= 0)
-    {
-        ret = write(fd, &lock, sizeof(lock));
-        DEBUG0("Releasing 4335 AXI BRIDGE lock");
-        close(fd);
-    }
-    else
-    {
-        DEBUG1("Failed to unlock AXI LOCK -- can't open %s", AXI_LOCK_FS_NODE);
-    }
-}
-#endif 	/* (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE) */
-
-UINT8 DownloadPatchram(char *patchram1)
+UINT8 DownloadPatchram(char *patchram1, UINT32 baudrate)
 {
 	UINT32 len;
 	char prm[128] = { 0, };
@@ -490,27 +349,11 @@ UINT8 DownloadPatchram(char *patchram1)
 	read_event(fd, buffer);
 	alarm(0);
 
-#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
-	char *p_tmp;
-
-	SendCommand(HCI_READ_LOCAL_NAME, 0, NULL);
-	read_event(fd, buffer);
-
-	p_tmp = strstr((char *)(buffer + 7), "BCM4335");
-	DEBUG1( "chip_name [%s]\n", p_tmp);
-
-	if ((p_tmp != NULL) &&
-	    ((p_tmp[7] == 'A') /* 4335A */||
-	     ((p_tmp[7] == 'B') && (p_tmp[8] == '0')) /* 4335B0 */)) {
-		hw_4335_dl_axi_patch();
-	}
-#endif
-
 #if ( HIGH_SPEED_PATCHRAM_DOWNLOAD == TRUE )
-	ChangeBaudRate(3000000);
+	ChangeBaudRate(baudrate, FALSE);
 #endif
 
-	strncpy(prm, patchram1, 127);
+	strcpy(prm, patchram1);
 
 	fprintf(stderr, "Download Start\n");
 
@@ -524,8 +367,12 @@ UINT8 DownloadPatchram(char *patchram1)
 	SendCommand(HCI_BRCM_DOWNLOAD_MINI_DRV, 0, NULL);
 	read_event(fd, buffer);
 
-	usleep(50000);
+	if (add_delay_right_before_download) {
+		DEBUG0("Add delay (50ms) to wait for proper downloading\n");
+		usleep(50000);
+	}
 
+	/* patchram downloading start */
 	while (fread(&buffer[1], sizeof(UINT8), 3, pFile)) {
 		buffer[0] = 0x01;
 
@@ -545,20 +392,24 @@ UINT8 DownloadPatchram(char *patchram1)
 		read_event(fd, buffer);
 
 	}
+	/* host do not need to send launch ram. becasue there is
+	 * Launchram command in the patchram itself */
+
 	fclose(pFile);
 
-#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
-	hw_4335_release_axi_bridge_lock();
-#endif
-	usleep(100000);		/*100ms delay */
+	/* give enough delay like 200ms or more afte patchram downloading,
+	 * so chip can reboot and reconfigured */
+	DEBUG0("Delay 200ms\n");
+	usleep(200000);		/*200ms delay */
 
+	/* change to AP baudrate to 115K. because patchram default baudrate is 115K */
 	tcflush(fd, TCIOFLUSH);
 	tcgetattr(fd, &termios);
 	cfmakeraw(&termios);
 	termios.c_cflag |= CRTSCTS;
 
-	if (use_two_stop_bits)
-		termios.c_cflag |= CSTOPB;
+	/* must use 1 stop bit for 115K.
+	 * becasue BT chip support 1stop bit only at 115K */
 
 	tcsetattr(fd, TCSANOW, &termios);
 	tcflush(fd, TCIOFLUSH);
@@ -596,7 +447,13 @@ void SetScanEnable(void)
 
 void SetAudio(void)
 {
-	fprintf(stderr, "Write Audio parameter\n");
+	fprintf(stderr, "Write Audio parameterrrr\n");
+
+	SendCommand(HCI_WRITE_I2SPCM_INTERFACE_PARAM, 4,
+		    (UINT8 *) vsc_for_i2c_param);
+	read_event(fd, buffer);
+
+	SetScoConf(0, 1, 0, 0, 0);
 
 	DEBUG5("vsc_for_sco_pcm = {%d,%d,%d,%d,%d}\n", vsc_for_sco_pcm[0],
 	       vsc_for_sco_pcm[1], vsc_for_sco_pcm[2],
@@ -606,6 +463,9 @@ void SetAudio(void)
 		    (UINT8 *) vsc_for_sco_pcm);
 	read_event(fd, buffer);
 
+
+
+#if 0
 	DEBUG5("vsc_for_pcm_config = {%d,%d,%d,%d,%d}\n", vsc_for_pcm_config[0],
 	       vsc_for_pcm_config[1], vsc_for_pcm_config[2],
 	       vsc_for_pcm_config[3], vsc_for_pcm_config[4]);
@@ -613,6 +473,7 @@ void SetAudio(void)
 	SendCommand(VSC_WRITE_PCM_DATA_FORMAT_PARAM, 5,
 		    (UINT8 *) vsc_for_pcm_config);
 	read_event(fd, buffer);
+#endif
 }
 
 void SetPcmConf(UINT8 p0, UINT8 p1, UINT8 p2, UINT8 p3, UINT8 p4)
@@ -635,11 +496,18 @@ void SetScoConf(UINT8 p0, UINT8 p1, UINT8 p2, UINT8 p3, UINT8 p4)
 
 void HCILP_Enable(BOOLEAN on)
 {
-	fprintf(stderr, "Set Low Power mode %d\n", on);
+	/* Host Stack Idle Threshold */
+	UINT8 hcilp_idle_threshold = 0x0A;
+
+	/* Host Controller Idle Threshold */
+	UINT8 hcilp_hc_idle_threshold = 0x0A;
+
+	fprintf(stderr, "Set Low Power mode\n");
+
 	UINT8 data[HCI_BRCM_WRITE_SLEEP_MODE_LENGTH] = {
 		0x01,		/* Sleep Mode algorithm 1 */
-		HCILP_IDLE_THRESHOLD,	/* Host Idle Treshold in 300ms */
-		HCILP_HC_IDLE_THRESHOLD,	/* Host Controller Idle Treshold in 300ms *//* this should be less than scan interval. */
+		hcilp_idle_threshold,	/* Host Idle Treshold */
+		hcilp_hc_idle_threshold,	/* Host Controller Idle Treshold*//* this should be less than scan interval. */
 		HCILP_BT_WAKE_POLARITY,	/* BT_WAKE Polarity - 0=Active Low, 1= Active High */
 		HCILP_HOST_WAKE_POLARITY,	/* HOST_WAKE Polarity - 0=Active Low, 1= Active High */
 		0x01,		/* Allow host Sleep during SCO */
@@ -647,6 +515,8 @@ void HCILP_Enable(BOOLEAN on)
 		0x00,		/* UART_TXD Tri-State : 0x00 = Do not tri-state UART_TXD in sleep mode */
 		0x00,		/* NA to Mode 1 */
 		0x00,		/* NA to Mode 1 */
+		0x00,		/* NA*/
+		0x00,		/* NA*/
 	};
 
 	if (on) {
@@ -688,12 +558,15 @@ UINT32 uart_speed(UINT32 Speed)
 	}
 }
 
-void ChangeBaudRate(UINT32 baudrate)
+void ChangeBaudRate(UINT32 baudrate, BOOLEAN isCan2stopbit)
 {
 	UINT8 hci_data[HCI_BRCM_UPDATE_BAUD_RATE_UNENCODED_LENGTH] =
 	    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+#if ( UART_CLOCK_SETTING == TRUE )
 	UINT8 uart_clock_24 = 0x2;	/* 0x1 - UART Clock 48MHz, 0x2 - UART Clock 24MHz */
 	UINT8 uart_clock_48 = 0x1;	/* 0x1 - UART Clock 48MHz, 0x2 - UART Clock 24MHz */
+#endif
 
 	switch (baudrate) {
 	case 115200:
@@ -704,22 +577,26 @@ void ChangeBaudRate(UINT32 baudrate)
 	case 1500000:
 	case 2000000:
 	case 2500000:
+#if ( UART_CLOCK_SETTING == TRUE )
 		/* Write UART Clock setting of 24MHz */
 		DEBUG0("Change UART_CLOCK 24Mhz\n");
 		SendCommand(VSC_WRITE_UART_CLOCK_SETTING,
 			    VSC_WRITE_UART_CLOCK_SETTING_LEN,
 			    (UINT8 *) & uart_clock_24);
 		read_event(fd, buffer);
+#endif
 		break;
 
 	case 3000000:
 	case 4000000:
+#if ( UART_CLOCK_SETTING == TRUE )
 		/* Write UART Clock setting of 48MHz */
-		DEBUG0("Change UART_CLOCK 48Mh\nz");
+		DEBUG0("Change UART_CLOCK 48Mhz\n");
 		SendCommand(VSC_WRITE_UART_CLOCK_SETTING,
 			    VSC_WRITE_UART_CLOCK_SETTING_LEN,
 			    (UINT8 *) & uart_clock_48);
 		read_event(fd, buffer);
+#endif
 		break;
 
 	default:
@@ -740,13 +617,16 @@ void ChangeBaudRate(UINT32 baudrate)
 		    (UINT8 *) hci_data);
 	read_event(fd, buffer);
 
+	/* change to AP baudrate to the same with BT chip */
 	tcflush(fd, TCIOFLUSH);
 	tcgetattr(fd, &termios);
 	cfmakeraw(&termios);
 	termios.c_cflag |= CRTSCTS;
 
-	if (use_two_stop_bits)
+	if (isCan2stopbit && use_two_stop_bits) {
+		DEBUG0("Use 2 stop bits\n");
 		termios.c_cflag |= CSTOPB;
+	}
 
 	tcsetattr(fd, TCSANOW, &termios);
 	tcflush(fd, TCIOFLUSH);
@@ -778,6 +658,26 @@ void EnableTestMode(void)
 	read_event(fd, buffer);
 
 	fprintf(stderr, "Enable Device Under Test\n");
+}
+
+void GetLocalName(void)
+{
+	UINT8 *data = NULL;
+
+	/* HCI reset */
+	DEBUG0("HCI reset\n");
+	SendCommand(HCI_RESET, 0, NULL);
+	alarm(1);
+	read_event(fd, buffer);
+	alarm(0);
+
+	DEBUG0("Read Local Name\n");
+	SendCommand(HCI_READ_LOCAL_NAME, 0, NULL);
+	read_event(fd, buffer);
+
+	data = &buffer[7];
+
+	fprintf(stderr, "Chip Name is %s\n", data);
 }
 
 void SetLocalFeatures(void)
@@ -828,6 +728,8 @@ void print_usage(void)
 	fprintf(stderr,
 		"  -FILE    Patchram file name     EX) -FILE=BCM43xx_xxx.hcd\n");
 	fprintf(stderr,
+		"  -PREBAUD Set Baudrate for patchram downloading EX) -PREBAUD=3000000\n");
+	fprintf(stderr,
 		"  -BAUD    Set Baudrate           EX) -BAUD=3000000\n");
 	fprintf(stderr,
 		"  -ADDR    BD addr file name      EX) -ADDR=.bdaddr\n");
@@ -836,18 +738,23 @@ void print_usage(void)
 		"  -SETSCO  SCO/PCM values verify  EX) -SETSCO=0,1,0,1,1,0,0,3,3,0\n");
 	fprintf(stderr, "  -LP      Enable Low power       EX) -LP\n");
 	fprintf(stderr, "  -FEATURE Set local Feature      EX) -FEATURE\n");
+	fprintf(stderr, "  -GETNAME Get local Name         EX) -GETNAME\n");
 	fprintf(stderr,
 		"  -DUT     Enable DUT mode(do not use with -LP) EX) -DUT\n");
 	fprintf(stderr,
 		"  -ATTACH  Attach BT controller to BlueZ stack  EX) -ATTACH\n");
 	fprintf(stderr, "  -DEBUG   Debug message          EX) -DEBUG\n");
 	fprintf(stderr, "  -CSTOPB  Set two stop bits for tty EX) -CSTOPB\n");
+	fprintf(stderr, "  -ADD_DELAY make delay(50ms) right before starting Firmware Download EX) -ADD_DELAY \n");
+	fprintf(stderr, "    *required for some specific old model such as 4334B0(Swing)\n");
+
 	fprintf(stderr, "\n");
 }
 
 int main(int argc, char *argv[])
 {
 	UINT8 i = 0;
+	UINT32 prebaudrate = 921600; /* Default Download setting */
 
 	if (argc < 2) {
 		print_usage();
@@ -856,11 +763,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "BRCM BT tool for Linux    release %s\n",
 			RELEASE_DATE);
 	}
-
-#if (DEPLOY_4335A_AXI_BRIDGE_PATCH == TRUE)
-	hw_4335_axi_bridge_lock();
-	usleep(50000);
-#endif
 
 	/* Open dev port */
 	if ((fd = open(argv[1], O_RDWR | O_NOCTTY)) == -1) {
@@ -874,8 +776,8 @@ int main(int argc, char *argv[])
 	cfmakeraw(&termios);
 	termios.c_cflag |= CRTSCTS;
 
-	if (use_two_stop_bits)
-		termios.c_cflag |= CSTOPB;
+	/* must use one stop bits. becasue BT chip default is one stop bits */
+	termios.c_cflag = termios.c_cflag & ~CSTOPB;
 
 	tcsetattr(fd, TCSANOW, &termios);
 	tcflush(fd, TCIOFLUSH);
@@ -894,13 +796,18 @@ int main(int argc, char *argv[])
 		if (strstr(ptr, "-DEBUG")) {
 			debug_mode = TRUE;
 			DEBUG0("DEBUG On\n");
-			break;
-		}
 
-		if (strstr(ptr, "-CSTOPB")) {
+		} else if (strstr(ptr, "-CSTOPB")) {
 			use_two_stop_bits = TRUE;
 			DEBUG0("Use two stop bits for tty\n");
-			break;
+
+		} else if (strstr(ptr, "-PREBAUD=")) {
+			ptr += 9;
+			prebaudrate = atoi(ptr);
+			DEBUG1("Use Baudrate(%ul) for downloading firmware\n",
+					prebaudrate);
+		} else if (strstr(ptr, "-ADD_DELAY")) {
+			add_delay_right_before_download = TRUE;
 		}
 	}
 
@@ -918,7 +825,7 @@ int main(int argc, char *argv[])
 			ptr += 6;
 
 			strncpy(prm_name, ptr, 127);
-			DownloadPatchram(prm_name);
+			DownloadPatchram(prm_name, prebaudrate);
 
 		} else if (strstr(ptr, "-BAUD=")) {
 			UINT32 baudrate;
@@ -926,7 +833,10 @@ int main(int argc, char *argv[])
 			ptr += 6;
 			baudrate = atoi(ptr);
 
-			ChangeBaudRate(baudrate);
+			/* This is the state that patchram download is done */
+			/* TRUE mean use 2 stop bit if CSTOPB is given */
+			ChangeBaudRate(baudrate, TRUE);
+
 		} else if (strstr(ptr, "-ADDR=")) {
 			char *bdaddr_filename;
 			FILE *pFile = NULL;
@@ -967,6 +877,9 @@ int main(int argc, char *argv[])
 
 				fgets(text, BTUI_MAX_STRING_LENGTH_PER_LINE,
 				      pFile);
+
+				fclose(pFile);
+
 				sscanf(text, "%02x%02x%02x", &bdaddr[3],
 				       &bdaddr[4], &bdaddr[5]);
 
@@ -984,7 +897,6 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "-ADDR: file open fail\n");
 				exit_err(1);
 			}
-
 		} else if (strstr(ptr, "-SCO")) {
 			SetAudio();
 
@@ -1014,14 +926,17 @@ int main(int argc, char *argv[])
 			EnableTestMode();
 		} else if (strstr(ptr, "-FEATURE")) {
 			SetLocalFeatures();
+		} else if (strstr(ptr, "-GETNAME")) {
+			GetLocalName();
 		} else if (strstr(ptr, "-ATTACH")) {
 			EnbleHCI();
 			while (1) {
 				sleep(UINT_MAX);
 			}
 		} else if (strstr(ptr, "-DEBUG")) {
+		} else if (strstr(ptr, "-PREBAUD")) {
 		} else if (strstr(ptr, "-CSTOPB")) {
-
+		} else if (strstr(ptr, "-ADD_DELAY")) {
 		} else {
 			fprintf(stderr, "Invalid parameter(s)!\n");
 			exit_err(1);

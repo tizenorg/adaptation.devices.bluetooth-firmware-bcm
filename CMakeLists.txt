@@ -10,3 +10,5 @@ ADD_SUBDIRECTORY(set-address)
 ADD_SUBDIRECTORY(tools)
 ADD_SUBDIRECTORY(firmware)
 ADD_SUBDIRECTORY(scripts)
+
+INSTALL(FILES ${CMAKE_SOURCE_DIR}/bluetooth-firmware-bcm.rule DESTINATION /etc/smack/accesses.d)
